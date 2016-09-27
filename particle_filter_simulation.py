@@ -359,7 +359,7 @@ if draw:
     plot_thread = threading.Thread(target=plot_function)
     plot_thread.start()
 
-position = simulate_filter(draw=draw)
+position = simulate_filter(number_of_particles=1000, draw=draw)
 
 if draw:
     program_end = True  # This flag stops the plot thread
