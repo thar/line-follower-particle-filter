@@ -40,25 +40,37 @@ Simulation tuning
 -------------
 ####  map change
 The map itself can be changed overwriting the two files noted in the Map section or changing the files paths in the file **particle_filter_simulation.py**
-> **map files path location in the code:**
->  **13** lines_bitmap_path = 'track.bmp'
->  **14** trayectory_bitmap_path = 'desired_trayectory.bmp'
+
+map files path location in the code:
+```
+13 lines_bitmap_path = 'track.bmp'
+14 trayectory_bitmap_path = 'desired_trayectory.bmp'
+```
 
 Together with the map, the robot start point must be changed. The start point must be the coordinates of the pixel the robot will start from. It is needed to also set the orientation in radians.
 Its values is (x_coordinate, y_coordinate, orientation)
-> **robot start position in the code:**
->  **16** robot_start_point_coordinates = (450, 338, 0.)
+
+robot start position in the code:
+```
+16 robot_start_point_coordinates = (450, 338, 0.)
+```
 
 ####  Performance check
 The simulation can be executed without a graphical representation of the movement. If executed this way an output with the time it takes the PC to execute each simulation loop is printed when exiting
 To run in this mode change the **draw** variable to **False** in the **particle_filter_simulation.py** file
-> **draw variable in the code:**
->  **356** draw = True  # Change this to False to get a loop time calculation
+
+draw variable in the code:
+```
+356 draw = True  # Change this to False to get a loop time calculation
+```
 
 ####  Number of particles in the filter
 It is possible to set the number of particles used in the simulation.
-> **Number of particles in the code:**
->  **362** position = simulate_filter(number_of_particles=1000, draw=draw)
+
+Number of particles in the code:
+```
+362 position = simulate_filter(number_of_particles=1000, draw=draw)
+```
 
 Future improvements
 -------------
