@@ -4,50 +4,18 @@ from time import time, sleep
 import numpy as np
 import matplotlib.pyplot as plt
 import threading
+import argparse
 
 particles_plot = None
 position_plot = None
-trayectory_plot = None
+trajectory_plot = None
 program_end = False
 
-lines_bitmap_path = 'track.bmp'
-trayectory_bitmap_path = 'desired_trayectory.bmp'
 
-robot_start_point_coordinates = (450, 338, 0.)
-
-lines_bitmap = Image.open(lines_bitmap_path)
-lines_map = np.array(lines_bitmap.convert('L'))
-lines_map[np.where(lines_map == 0)] = 1
-lines_map[np.where(lines_map == 255)] = 0
-
-lines_map_shape = lines_map.shape
-
-trayectory_bitmap = Image.open(trayectory_bitmap_path)
-trayectory_map = np.array(trayectory_bitmap.convert('L'))
-trayectory_map[np.where(trayectory_map == 0)] = 1
-trayectory_map[np.where(trayectory_map == 255)] = 0
-
-background_lines = lines_bitmap.convert('RGBA')
-data = np.array(background_lines)
-red, green, blue, alpha = data.T
-black_areas = (red == 0) & (blue == 0) & (green == 0)
-data[..., :-1][black_areas.T] = (0, 0, 0)  # Transpose back needed
-
-background_trayectory = trayectory_bitmap.convert('RGBA')
-data_tray = np.array(background_trayectory)
-red, green, blue, alpha = data_tray.T
-
-# Replace black trayectory with green... (leaves alpha values alone...)
-black_areas = (red == 0) & (blue == 0) & (green == 0)
-data[..., :-1][black_areas.T] = (0, 255, 0)  # Transpose back needed
-
-background_image = Image.fromarray(data)
-
-
-def plot_function():
+def plot_function(background_image):
     global particles_plot
     global position_plot
-    global trayectory_plot
+    global trajectory_plot
 
     plt.ion()
 
@@ -55,7 +23,7 @@ def plot_function():
 
     particles_plot, = plt.plot(-100, -100, 'r.')
     position_plot, = plt.plot(-100, -100, 'b')
-    trayectory_plot, = plt.plot(-100, -100, 'y')
+    trajectory_plot, = plt.plot(-100, -100, 'y')
     plt.draw()
     while not program_end:
         plt.draw()
@@ -63,10 +31,12 @@ def plot_function():
 
 
 class ParticleFilter:
-    def __init__(self, N=1000, forward_noise=0.2, turn_noise=0.05,
-                 sense_noise=100., distance_to_sensors=10.,
+    def __init__(self, lines_map, N=1000, forward_noise=0.2,
+                 turn_noise=0.05, sense_noise=100.,
+                 distance_to_sensors=10.,
                  number_of_sensors=8, sensors_length=8.,
                  x=0., y=0., o=0.):
+        self.lines_map = lines_map
         self.N = N  # number of particles
 
         self.forward_noise = forward_noise
@@ -127,11 +97,11 @@ class ParticleFilter:
             (2 * pi)
 
     # sense function returns an array with each particle weight
-    def sense(self, mapa, measured_distance=None):
+    def sense(self, measured_distance=None):
         [x, y] = self._get_sensors_coordinates()
 
         measurements = \
-            self._get_particles_distances_from_sensors_coordinates(x, y, mapa)
+            self._get_particles_distances_from_sensors_coordinates(x, y)
 
         # it is possible for the robot not to see a line
         if measured_distance is not None:
@@ -160,7 +130,7 @@ class ParticleFilter:
 
     def loop(self, lineal_movement, angular_movement, measured_distance):
         self.move(lineal_movement, angular_movement)
-        self.sense(lines_map, measured_distance)
+        self.sense(measured_distance)
         self.resample()
 
     def get_position(self, return_variance=False):
@@ -214,14 +184,16 @@ class ParticleFilter:
         x[np.where(x < 0)] = 0
         y[np.where(y < 0)] = 0
 
+        lines_map_shape = self.lines_map.shape
         x[np.where(x >= lines_map_shape[1])] = lines_map_shape[1] - 1
         y[np.where(y >= lines_map_shape[0])] = lines_map_shape[0] - 1
 
         return [x, y]
 
-    def _get_particles_distances_from_sensors_coordinates(self, x, y, mapa):
+    def _get_particles_distances_from_sensors_coordinates(self, x, y):
         # N x number_of_sensors array with sensor readings in each position
-        map_vaules = np.reshape(mapa[y, x], (self.N, self.number_of_sensors))
+        map_vaules = np.reshape(self.lines_map[y, x],
+                                (self.N, self.number_of_sensors))
 
         weights = np.arange(1, self.number_of_sensors + 1) * 2000 / \
             self.number_of_sensors
@@ -236,10 +208,11 @@ class ParticleFilter:
 
 
 class Robot(ParticleFilter):
-    def __init__(self, x=0., y=0., o=0., distance_to_sensors=10.,
+    def __init__(self, lines_map, x=0., y=0., o=0., distance_to_sensors=10.,
                  number_of_sensors=8, sensors_length=8.,
                  fw_n=0.000001, tr_n=0.000001, ss_n=0.000001):
-        ParticleFilter.__init__(self, 1, fw_n, tr_n, ss_n, distance_to_sensors,
+        ParticleFilter.__init__(self, lines_map, 1, fw_n, tr_n, ss_n,
+                                distance_to_sensors,
                                 number_of_sensors, sensors_length, x, y, o)
 
     def plot(self, plot):
@@ -283,8 +256,10 @@ class Robot(ParticleFilter):
         return '[x=%.6s y=%.6s orient=%.6s]' % (x, y, str(degrees(o)))
 
 
-def simulate_filter(number_of_particles=1000, draw=False):
-    particle_filter = ParticleFilter(number_of_particles,
+def simulate_filter(robot_start_point_coordinates,
+                    number_of_particles, lines_map, trajectory_map,
+                    draw=False):
+    particle_filter = ParticleFilter(lines_map, number_of_particles,
                                      x=robot_start_point_coordinates[0],
                                      y=robot_start_point_coordinates[1],
                                      o=robot_start_point_coordinates[2])
@@ -292,8 +267,8 @@ def simulate_filter(number_of_particles=1000, draw=False):
     for i in range(50):
         particle_filter.disperse()
 
-    real_robot = Robot(*robot_start_point_coordinates)
-    simulated_robot = Robot(*robot_start_point_coordinates)
+    real_robot = Robot(lines_map, *robot_start_point_coordinates)
+    simulated_robot = Robot(trajectory_map, *robot_start_point_coordinates)
 
     if draw:
         # Wait til the plot is ready
@@ -303,7 +278,7 @@ def simulate_filter(number_of_particles=1000, draw=False):
         particles_plot.set_xdata(particle_filter.x_positions.ravel())
         real_robot.plot(position_plot)
         sleep(0.51)
-        raw_input("Press Enter to continue...")
+        raw_input('Press Enter to continue...')
 
     print 'press Ctrl+c to stop execution'
 
@@ -327,20 +302,20 @@ def simulate_filter(number_of_particles=1000, draw=False):
 
             [x, y, z] = particle_filter.get_position()
             simulated_robot.set_position(x, y, z)
-            distance_to_trayectory = simulated_robot.sense(trayectory_map)
-            if distance_to_trayectory <= -1000:
-                distance_to_trayectory = 0
+            distance_to_trajectory = simulated_robot.sense()
+            if distance_to_trajectory <= -1000:
+                distance_to_trajectory = 0
 
             # TODO: fix the turn_movement calculation
             # The magic numbers (500 and 7) are take from try and error
             # The need here is to compute a simulation of the PID
-            # algorithm that makes the robot to follow the trayectory
+            # algorithm that makes the robot to follow the trajectory
             turn_movement = atan2((real_robot.sensors_length *
-                                   distance_to_trayectory / 500),
+                                   distance_to_trajectory / 500),
                                   real_robot.distance_to_sensors) / 7
 
             real_robot.move(forward_movement, turn_movement)
-            robot_sensors_measurement = real_robot.sense(lines_map)
+            robot_sensors_measurement = real_robot.sense()
             loops_count += 1
 
     except KeyboardInterrupt:
@@ -353,17 +328,87 @@ def simulate_filter(number_of_particles=1000, draw=False):
     return particle_filter.get_position()
 
 
-draw = True  # Change this to False to get a loop time calculation
+def coords(s):
+    try:
+        x, y, o = map(float, s.split(','))
+        return x, y, o
+    except:
+        raise argparse.ArgumentTypeError('Coordinates must be x,y,orientation')
 
-if draw:
-    plot_thread = threading.Thread(target=plot_function)
-    plot_thread.start()
 
-position = simulate_filter(number_of_particles=1000, draw=draw)
+def main():
+    global program_end
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-p', '--particles', default=1000,
+                        help='Number of particles in the simulation')
+    parser.add_argument('--no-draw', action='store_true',
+                        help='Disables the graphical representation of the \
+                        filter')
+    parser.add_argument('--lines-image', default='track.bmp',
+                        help='Path to the lines map image')
+    parser.add_argument('--trajectory-image', default='desired_trayectory.bmp',
+                        help='Path to the desired trajectory map image')
+    parser.add_argument('--start-point', default=(450., 338., 0.),
+                        help='Start point in the lines map', type=coords,
+                        nargs=3)
+    parser.add_argument('--forward-speed', default=4.,
+                        help='Number of cm the robot will move forward in each \
+                        filter loop')
+    parser.add_argument('--forward-noise', default=0.2,
+                        help='Error to the forward movement')
+    parser.add_argument('--turn-noise', default=0.05,
+                        help='Error to the turn movement')
+    parser.add_argument('--sense-noise', default=100.,
+                        help='Error in the sensors read')
 
-if draw:
-    program_end = True  # This flag stops the plot thread
-    plot_thread.join()
+    args = parser.parse_args()
 
-# TODO: Fix the simulation exit when in draw mode that shows
-# RuntimeError: main thread is not in main loop
+    lines_bitmap_path = args.lines_image
+    trajectory_bitmap_path = args.trajectory_image
+
+    lines_bitmap = Image.open(lines_bitmap_path)
+    lines_map = np.array(lines_bitmap.convert('L'))
+    lines_map[np.where(lines_map == 0)] = 1
+    lines_map[np.where(lines_map == 255)] = 0
+
+    trajectory_bitmap = Image.open(trajectory_bitmap_path)
+    trajectory_map = np.array(trajectory_bitmap.convert('L'))
+    trajectory_map[np.where(trajectory_map == 0)] = 1
+    trajectory_map[np.where(trajectory_map == 255)] = 0
+
+    background_lines = lines_bitmap.convert('RGBA')
+    data = np.array(background_lines)
+    red, green, blue, alpha = data.T
+    black_areas = (red == 0) & (blue == 0) & (green == 0)
+    data[..., :-1][black_areas.T] = (0, 0, 0)  # Transpose back needed
+
+    background_trajectory = trajectory_bitmap.convert('RGBA')
+    data_traj = np.array(background_trajectory)
+    red, green, blue, alpha = data_traj.T
+
+    # Replace black trajectory with green... (leaves alpha values alone...)
+    black_areas = (red == 0) & (blue == 0) & (green == 0)
+    data[..., :-1][black_areas.T] = (0, 255, 0)  # Transpose back needed
+
+    background_image = Image.fromarray(data)
+
+    draw = not args.no_draw  # Change this to False to get a loop time calculation
+
+    if draw:
+        plot_thread = threading.Thread(target=plot_function,
+                                       args=(background_image,))
+        plot_thread.start()
+
+    simulate_filter(args.start_point, args.particles, lines_map,
+                    trajectory_map, draw)
+
+    if draw:
+        program_end = True  # This flag stops the plot thread
+        plot_thread.join()
+
+    # TODO: Fix the simulation exit when in draw mode that shows
+    # RuntimeError: main thread is not in main loop
+
+
+if __name__ == '__main__':
+    main()
