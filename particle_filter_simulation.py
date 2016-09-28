@@ -10,6 +10,7 @@ particles_plot = None
 position_plot = None
 trajectory_plot = None
 program_end = False
+draw_loop_time = 0.01
 
 
 def plot_function(background_image):
@@ -258,8 +259,10 @@ class Robot(ParticleFilter):
 
 def simulate_filter(robot_start_point_coordinates,
                     number_of_particles, lines_map, trajectory_map,
+                    forward_noise, turn_noise, sense_noise,
                     draw=False):
     particle_filter = ParticleFilter(lines_map, number_of_particles,
+                                     forward_noise, turn_noise, sense_noise,
                                      x=robot_start_point_coordinates[0],
                                      y=robot_start_point_coordinates[1],
                                      o=robot_start_point_coordinates[2])
@@ -298,7 +301,7 @@ def simulate_filter(robot_start_point_coordinates,
                 particles_plot.set_ydata(particle_filter.y_positions.ravel())
                 particles_plot.set_xdata(particle_filter.x_positions.ravel())
                 real_robot.plot(position_plot)
-                sleep(0.0025)
+                sleep(draw_loop_time)
 
             [x, y, z] = particle_filter.get_position()
             simulated_robot.set_position(x, y, z)
@@ -338,9 +341,12 @@ def coords(s):
 
 def main():
     global program_end
+    global draw_loop_time
+
     parser = argparse.ArgumentParser()
     parser.add_argument('-p', '--particles', default=1000,
-                        help='Number of particles in the simulation')
+                        help='Number of particles in the simulation. \
+                        Default is 1000')
     parser.add_argument('--no-draw', action='store_true',
                         help='Disables the graphical representation of the \
                         filter')
@@ -349,19 +355,24 @@ def main():
     parser.add_argument('--trajectory-image', default='desired_trayectory.bmp',
                         help='Path to the desired trajectory map image')
     parser.add_argument('--start-point', default=(450., 338., 0.),
-                        help='Start point in the lines map', type=coords,
-                        nargs=3)
+                        help='Start point in the lines map in the form \
+                        x,y,orientation', type=coords, nargs=3)
     parser.add_argument('--forward-speed', default=4.,
                         help='Number of cm the robot will move forward in each \
                         filter loop')
-    parser.add_argument('--forward-noise', default=0.2,
-                        help='Error to the forward movement')
-    parser.add_argument('--turn-noise', default=0.05,
-                        help='Error to the turn movement')
+    parser.add_argument('--forward-noise', default=0.5,
+                        help='Error to the forward movement. Default is 0.5')
+    parser.add_argument('--turn-noise', default=0.1,
+                        help='Error to the turn movement. Default is 0.1')
     parser.add_argument('--sense-noise', default=100.,
-                        help='Error in the sensors read')
+                        help='Error in the sensors read. Default is 100.0')
+    parser.add_argument('--draw-loop-time', default=10.0, type=float,
+                        help='Time in ms between filter loops when in draw mode. \
+                        Default is 10.0')
 
     args = parser.parse_args()
+
+    draw_loop_time = args.draw_loop_time / 1000.
 
     lines_bitmap_path = args.lines_image
     trajectory_bitmap_path = args.trajectory_image
@@ -392,7 +403,7 @@ def main():
 
     background_image = Image.fromarray(data)
 
-    draw = not args.no_draw  # Change this to False to get a loop time calculation
+    draw = not args.no_draw
 
     if draw:
         plot_thread = threading.Thread(target=plot_function,
@@ -400,7 +411,8 @@ def main():
         plot_thread.start()
 
     simulate_filter(args.start_point, args.particles, lines_map,
-                    trajectory_map, draw)
+                    trajectory_map, args.forward_noise, args.turn_noise,
+                    args.sense_noise, draw)
 
     if draw:
         program_end = True  # This flag stops the plot thread
