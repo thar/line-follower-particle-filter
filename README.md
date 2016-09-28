@@ -38,40 +38,70 @@ To stop the simulation a 'Ctrl-c' is required in the console from were the simul
 
 Simulation tuning
 -------------
+The program has a help that shows the tuneables for the simulation with a bref description of its meaning
+```
+python particle_filter_simulation.py -h
+usage: particle_filter_simulation.py [-h] [-p PARTICLES] [--no-draw]
+                                     [--lines-image LINES_IMAGE]
+                                     [--trajectory-image TRAJECTORY_IMAGE]
+                                     [--start-point START_POINT START_POINT START_POINT]
+                                     [--forward-speed FORWARD_SPEED]
+                                     [--forward-noise FORWARD_NOISE]
+                                     [--turn-noise TURN_NOISE]
+                                     [--sense-noise SENSE_NOISE]
+                                     [--draw-loop-time DRAW_LOOP_TIME]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -p PARTICLES, --particles PARTICLES
+                        Number of particles in the simulation. Default is 1000
+  --no-draw             Disables the graphical representation of the filter
+  --lines-image LINES_IMAGE
+                        Path to the lines map image
+  --trajectory-image TRAJECTORY_IMAGE
+                        Path to the desired trajectory map image
+  --start-point START_POINT START_POINT START_POINT
+                        Start point in the lines map in the form
+                        x,y,orientation
+  --forward-speed FORWARD_SPEED
+                        Number of cm the robot will move forward in each
+                        filter loop
+  --forward-noise FORWARD_NOISE
+                        Error to the forward movement. Default is 0.5
+  --turn-noise TURN_NOISE
+                        Error to the turn movement. Default is 0.1
+  --sense-noise SENSE_NOISE
+                        Error in the sensors read. Default is 100.0
+  --draw-loop-time DRAW_LOOP_TIME
+                        Time in ms between filter loops when in draw mode.
+                        Default is 10.0
+```
+
 ####  map change
-The map itself can be changed overwriting the two files noted in the Map section or changing the files paths in the file **particle_filter_simulation.py**
+The map can be changed from the command line by setting the path to the new map files.
+Use the parameters **--lines-image**, **--trajectory-image** and **--start-point**
+The start point must be the coordinates of the pixel the robot will start from. It is needed to also set the orientation in radians.
+The orientation must be set in radians.
 
-map files path location in the code:
-```
-13 lines_bitmap_path = 'track.bmp'
-14 trayectory_bitmap_path = 'desired_trayectory.bmp'
-```
-
-Together with the map, the robot start point must be changed. The start point must be the coordinates of the pixel the robot will start from. It is needed to also set the orientation in radians.
-Its values is (x_coordinate, y_coordinate, orientation)
-
-robot start position in the code:
-```
-16 robot_start_point_coordinates = (450, 338, 0.)
-```
+> **Note:**
+> See the Map section to know the maps files requirements.
 
 ####  Performance check
-The simulation can be executed without a graphical representation of the movement. If executed this way an output with the time it takes the PC to execute each simulation loop is printed when exiting
-To run in this mode change the **draw** variable to **False** in the **particle_filter_simulation.py** file
+The simulation can be executed without a graphical representation of the movement. If executed this way an output with the time it takes the PC to execute each simulation loop is printed when exiting. To do so run with the parameter **--no-draw**.
 
-draw variable in the code:
-```
-356 draw = True  # Change this to False to get a loop time calculation
-```
 
 ####  Number of particles in the filter
-It is possible to set the number of particles used in the simulation.
+It is possible to set the number of particles used in the simulation with the parameter **-p**.
+More particles usualy tend to make the algorithm more robust. If too few particles are set the robot will get lost and the particles will diverge from the robot position.
 
-Number of particles in the code:
-```
-362 position = simulate_filter(number_of_particles=1000, draw=draw)
-```
+#### Robot speed
+The simulation moves the robot position in each loop. The ammount of forward movement (in cm) that is applied can be set with the parameter **--forward-speed**. A too high value will make the robot simulation not to be able to follow the wanted trajectory.
 
-Future improvements
--------------
-Enable the tuning of parameters from the command line
+#### Noise parameters
+All the noise parameters refere to the error the measurements of the robot always have. Higher values will imply that the robot readings are worse, so the particles will separete more from the actual robot position.
+If the error is too high the robot will get lost when running the simulation.
+An increase in the number of particles is supposed to help make the system more robust against high error values.
+Play with the parameters **--forward-noise**, **--turn-noise** and **--sense-noise** to view how the particles are affected in the simulation
+
+#### Simulation speed
+The time between two loops can be modified by setting the parameter **--draw-loop-time**. Higher values will make the simulation to run slower, so it will be possible follow easily the particles in the simulation screen.
